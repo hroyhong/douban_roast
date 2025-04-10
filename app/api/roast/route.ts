@@ -9,6 +9,7 @@ interface Movie {
   date: string;
 }
 
+// @ts-ignore
 function getRatingFromClass(ratingSpan: cheerio.Cheerio<cheerio.Element> | undefined): number | 'na' {
   if (ratingSpan && ratingSpan.length > 0) {
     const ratingClass = ratingSpan.attr('class') || '';
@@ -39,6 +40,7 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
     console.log(`Scraping page ${pageNum}: ${currentPageUrl}`);
     try {
       const response = await axios.get(currentPageUrl, { headers, timeout: 20000 });
+      // @ts-ignore
       const $: cheerio.CheerioAPI = cheerio.load(response.data);
 
       const movieItems = $('div.item');
@@ -54,6 +56,7 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
         const rawTitle = titleTag.text().trim();
         const title = rawTitle.split('/')[0]?.trim() || 'N/A';
 
+        // @ts-ignore
         const ratingSpan: cheerio.Cheerio<cheerio.Element> = item.find('span[class^="rating"]');
         const rating = getRatingFromClass(ratingSpan);
 
@@ -147,7 +150,7 @@ ${movieListString}
         const response = await axios.post(
             "https://api.groq.com/openai/v1/chat/completions",
             {
-                model: "meta-llama/llama-4-maverick-17b-128e-instruct", // Or another model supporting Chinese well
+                model: "meta-llama/llama-4-scout-17b-16e-instruct", // Or another model supporting Chinese well
                 messages: [
                     // Updated system message slightly
                     { role: "system", content: "你是一位风趣、毒舌的影评人，请用中文回答。" },
