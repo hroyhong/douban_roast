@@ -9,7 +9,7 @@ interface Movie {
   date: string;
 }
 
-// @ts-ignore
+// @ts-expect-error
 function getRatingFromClass(ratingSpan: cheerio.Cheerio<cheerio.Element> | undefined): number | 'na' {
   if (ratingSpan && ratingSpan.length > 0) {
     const ratingClass = ratingSpan.attr('class') || '';
@@ -40,7 +40,7 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
     console.log(`Scraping page ${pageNum}: ${currentPageUrl}`);
     try {
       const response = await axios.get(currentPageUrl, { headers, timeout: 20000 });
-      // @ts-ignore
+      // @ts-expect-error
       const $: cheerio.CheerioAPI = cheerio.load(response.data);
 
       const movieItems = $('div.item');
@@ -56,7 +56,7 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
         const rawTitle = titleTag.text().trim();
         const title = rawTitle.split('/')[0]?.trim() || 'N/A';
 
-        // @ts-ignore
+        // @ts-expect-error
         const ratingSpan: cheerio.Cheerio<cheerio.Element> = item.find('span[class^="rating"]');
         const rating = getRatingFromClass(ratingSpan);
 
