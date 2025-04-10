@@ -54,9 +54,10 @@ export default function Home() {
       // If response is ok OR if we got movies even with a roast error, set the result
       setResult(data);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('API call failed:', err);
-      setError(err.message || 'An unexpected error occurred.');
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      setError(message);
       setResult(null); // Clear previous results on hard error
     } finally {
       setIsLoading(false);
