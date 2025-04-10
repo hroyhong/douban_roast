@@ -21,7 +21,7 @@ function getRatingFromClass(ratingSpan: cheerio.Cheerio<cheerio.Element> | undef
 }
 
 async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
-  let allMoviesData: Movie[] = [];
+  const allMoviesData: Movie[] = [];
   let currentPageUrl: string | null = `https://movie.douban.com/people/${userId}/collect`;
   let pageNum = 1;
   const maxPages = 5; // Limit scraping to avoid long requests/potential blocks
@@ -54,7 +54,6 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
         const rawTitle = titleTag.text().trim();
         const title = rawTitle.split('/')[0]?.trim() || 'N/A';
 
-        const introDiv = item.find('div.intro'); // Rating and date are often here
         const ratingSpan: cheerio.Cheerio<cheerio.Element> = item.find('span[class^="rating"]');
         const rating = getRatingFromClass(ratingSpan);
 
@@ -97,7 +96,9 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
       pageNum++;
       await new Promise(resolve => setTimeout(resolve, 500)); // Be polite
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        let message = 'Unknown scraping error occurred';
+        if (error instanceof Error) message = error.message; // Basic type check
         if (axios.isAxiosError(error)) {
              console.error(`Error fetching page ${currentPageUrl}: ${error.message}`, error.response?.status);
              if (error.response?.status === 404) {
@@ -106,10 +107,12 @@ async function scrapeDoubanMovies(userId: string): Promise<Movie[]> {
              if (error.response?.status === 403) {
                 throw new Error(`Access denied (403). The profile might be private or requires login.`);
              }
+             message = error.message; // Use Axios error message
         } else {
             console.error(`An unexpected error occurred while scraping ${currentPageUrl}:`, error);
         }
-      throw new Error(`Failed to scrape Douban page: ${error instanceof Error ? error.message : 'Unknown error'}`); // Stop scraping on error
+        // Throw generic error using derived message
+      throw new Error(`Failed to scrape Douban page: ${message}`);
     }
   }
 
@@ -131,7 +134,7 @@ async function getRoastFromGroq(movies: Movie[], userId: string): Promise<string
         .join('\n');
 
     // Chinese Prompt
-    const prompt = `你是一位毒舌且风趣的影评人。这是豆瓣用户 (${userId}) 看过的电影列表。请分析这份列表，并用简短、幽默的语言（2-3段）吐槽一下这位用户的观影品味。请尽量结合电影列表中的具体例子，有点创意，不要仅仅复述列表。
+    const prompt = `你是一位嘴臭老哥。这是豆瓣用户 (${userId}) 看过的电影列表。请用最恶毒的语气，幽默的风格，吐槽一下这位用户的观影品味，可以关注打分以及短评。
 
 用户 ${userId} 看过的电影：
 ${movieListString}
@@ -172,17 +175,22 @@ ${movieListString}
         console.log("Roast received from Groq.");
         return roast;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error calling Groq API:");
+        let errorMsg = "Failed to get roast from AI."; // Default message
         if (axios.isAxiosError(error)) {
             console.error("Status:", error.response?.status);
             console.error("Data:", error.response?.data);
             const errorDetail = error.response?.data?.error?.message || error.response?.data?.detail || error.message;
-            throw new Error(`Groq API 错误: ${errorDetail}`); // Chinese error
-        } else {
+            errorMsg = `Groq API 错误: ${errorDetail}`;
+        } else if (error instanceof Error) {
             console.error(error);
-            throw new Error(`调用 AI 生成吐槽失败: ${error.message}`); // Chinese error
+            errorMsg = `调用 AI 生成吐槽失败: ${error.message}`;
+        } else {
+             console.error("Unknown error type:", error)
+             errorMsg = "调用 AI 时发生未知错误";
         }
+         throw new Error(errorMsg);
     }
 }
 
@@ -206,16 +214,20 @@ export async function POST(req: NextRequest) {
     try {
         const roast = await getRoastFromGroq(movies, userId);
         return NextResponse.json({ movies: movies, roast: roast }, { status: 200 });
-    } catch (roastError: any) {
+    } catch (roastError: unknown) {
          console.error('Failed to get roast:', roastError);
+         let roastErrorMessage = "生成吐槽时出错"; // Default
+         if (roastError instanceof Error) {
+            roastErrorMessage = roastError.message;
+         }
          return NextResponse.json({
             movies: movies,
-            message: "成功抓取电影列表，但生成吐槽时出错。", // Chinese error
-            error: roastError.message
+            message: "成功抓取电影列表，但" + roastErrorMessage, // Combine message
+            error: roastErrorMessage // Also include specific error if needed
          }, { status: 200 });
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in /api/roast:', error);
     const errorMsg = error instanceof Error ? error.message : '未知错误'; // Chinese error
     const statusCode = errorMsg.includes('404') || errorMsg.includes('403') ? 400 : 500;
